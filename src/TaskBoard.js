@@ -26,8 +26,15 @@ function fmtTime(iso) {
   return `${Math.floor(diff/86400)}d ago`;
 }
 
-export default function TaskBoard({ user }) {
-  const [tasks,    setTasks]    = useState([]);
+export default function TaskBoard({ user, onTasksLoaded }) {
+  const [tasks,    setTasks]    = useState(() => {
+    try {
+      const cached = localStorage.getItem('xv_tasks');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [loading,  setLoading]  = useState(true);
   const [users,    setUsers]    = useState([]);
   const [adding,   setAdding]   = useState(null);
@@ -38,6 +45,11 @@ export default function TaskBoard({ user }) {
   const [openCard, setOpenCard] = useState(null);
 
   useEffect(() => { loadTasks(); if (user.role==='admin') loadUsers(); }, []); // eslint-disable-line
+
+  useEffect(() => {
+    localStorage.setItem('xv_tasks', JSON.stringify(tasks));
+    if (onTasksLoaded) onTasksLoaded(tasks);
+  }, [tasks, onTasksLoaded]);
 
   async function loadTasks() {
     setLoading(true);
@@ -301,7 +313,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
   function toggleCheck(id) { onPatch(task.task_id,{checklist:checklist.map(c=>c.id===id?{...c,done:!c.done}:c)}); }
   function deleteCheck(id) { onPatch(task.task_id,{checklist:checklist.filter(c=>c.id!==id)}); }
 
-  const mo = { padding: '10px 14px', borderRadius: 8, background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:12, display:'flex', alignItems:'center', gap:6, cursor:'pointer', transition:'all 0.15s', fontFamily:'var(--font-body)', fontWeight:500 };
+  const mo = { padding: '10px 14px', borderRadius: 8, background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:12, display:'flex', alignItems:'center', gap:6, cursor:'pointer', outline:'none', whiteSpace:'nowrap' };
   const sideHead = { fontSize:10, fontWeight:700, color:'var(--text-muted)', letterSpacing:'0.08em', textTransform:'uppercase', marginBottom:6 };
   const currentCol = columns.find(c=>c.id===task.status);
 
@@ -317,7 +329,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
         {/* Header */}
         <div style={{ padding:'18px 18px 0', display:'flex', alignItems:'flex-start', gap:12 }}>
           <button
-            style={{ width:24, height:24, borderRadius:'50%', border:`2px solid ${task.completed?'var(--green)':'var(--border-strong)'}`, background: task.completed?'var(--green)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', cursor:'pointer', flexShrink:0, marginTop:3, transition:'all 0.15s', color:'#080b10' }}
+            style={{ width:24, height:24, borderRadius:'50%', border:`2px solid ${task.completed?'var(--green)':'var(--border-strong)'}`, background: task.completed?'var(--green)':'transparent', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }}
             onClick={() => onPatch(task.task_id,{completed:!task.completed})}
           >
             {task.completed && <Ico d="M20 6 9 17l-5-5" s={12}/>}
@@ -325,7 +337,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
           <div style={{ flex:1 }}>
             {editTitle && canEdit ? (
               <input
-                autoFocus style={{ width:'100%', fontSize:18, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:8, padding:'4px 10px', fontFamily:'var(--font-display)', boxSizing:'border-box', outline:'none' }}
+                autoFocus style={{ width:'100%', fontSize:18, fontWeight:700, color:'var(--text-primary)', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:8, padding:'6px 10px', outline:'none', fontFamily:'var(--font-display)' }}
                 value={title}
                 onChange={e => setTitle(e.target.value)}
                 onKeyDown={e => { if(e.key==='Enter')saveTitle(); if(e.key==='Escape'){setEditTitle(false);setTitle(task.title);} }}
@@ -339,7 +351,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
             )}
             <div style={{ fontSize:12, color:'var(--text-muted)', marginTop:4, display:'flex', alignItems:'center', gap:5 }}>
               in list
-              <select style={{ background:'transparent', border:'none', borderBottom:'1px solid var(--border-mid)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer', outline:'none', fontFamily:'var(--font-body)' }} value={task.status} onChange={e=>onMove(task.task_id,e.target.value)}>
+              <select style={{ background:'transparent', border:'none', borderBottom:'1px solid var(--border-mid)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer', outline:'none', fontWeight:500 }} value={task.status} onChange={e=>onMove(task.task_id,e.target.value)}>
                 {columns.map(c=><option key={c.id} value={c.id}>{c.label}</option>)}
               </select>
             </div>
@@ -354,18 +366,19 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
             {/* Toolbar */}
             <div style={{ display:'flex', gap:6, flexWrap:'wrap', marginBottom:14 }}>
               {[
-                { icon:"M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", label:'Dates',    fn:()=>{setShowDate(p=>!p);setShowLabels(false);setShowCheck(false);setShowCover(false);} },
+                { icon:"M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z M7 7h.01", label:'Labels', fn:()=>{setShowLabels(p=>!p);setShowDate(false);setShowCheck(false);setShowCover(false);} },
+                { icon:"M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z", label:'Dates', fn:()=>{setShowDate(p=>!p);setShowLabels(false);setShowCheck(false);setShowCover(false);} },
                 { icon:"M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11", label:'Checklist', fn:()=>{setShowCheck(true);setShowDate(false);setShowLabels(false);setShowCover(false);} },
               ].map(b => (
                 <div key={b.label} style={{ position:'relative' }}>
                   <button style={mo} onClick={b.fn}><Ico d={b.icon} s={13}/>{b.label}</button>
                   {b.label==='Dates' && showDate && (
-                    <div style={{ position:'absolute', zIndex:200, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:12, padding:'14px', minWidth:200, boxShadow:'var(--shadow)', top:'110%', left:0 }}>
+                    <div style={{ position:'absolute', zIndex:200, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:12, padding:'14px', minWidth:200, boxShadow:'var(--shadow)' }}>
                       <div style={sideHead}>Due Date</div>
-                      <input type="date" value={dateInput} onChange={e=>setDateInput(e.target.value)} style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--border-mid)', borderRadius:7, padding:'7px 10px', fontSize:13, color:'var(--text-primary)', fontFamily:'var(--font-body)', outline:'none', marginBottom:8 }}/>
+                      <input type="date" value={dateInput} onChange={e=>setDateInput(e.target.value)} style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--border-mid)', borderRadius:6, padding:'8px', fontSize:12, marginBottom:10, outline:'none', color:'var(--text-primary)' }}/>
                       <div style={{ display:'flex', gap:6 }}>
-                        <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'6px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }} onClick={() => { onPatch(task.task_id,{due_date:dateInput||null}); setShowDate(false); }}>Save</button>
-                        {task.due_date && <button style={{ background:'none', border:'1px solid var(--red)', color:'var(--red)', borderRadius:7, padding:'6px 10px', fontSize:12, cursor:'pointer' }} onClick={() => { onPatch(task.task_id,{due_date:null}); setShowDate(false); }}>Remove</button>}
+                        <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'6px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }} onClick={()=>{if(dateInput)onPatch(task.task_id,{due_date:new Date(dateInput).toISOString()});setShowDate(false);}}>Save</button>
+                        {task.due_date && <button style={{ background:'none', border:'1px solid var(--red)', color:'var(--red)', borderRadius:7, padding:'6px 10px', fontSize:12, cursor:'pointer' }} onClick={()=>{onPatch(task.task_id,{due_date:null});setShowDate(false);}}>Clear</button>}
                       </div>
                     </div>
                   )}
@@ -378,17 +391,18 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
               <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                 <div style={sideHead}>Members</div>
                 <div style={{ display:'flex', alignItems:'center', gap:5 }}>
-                  <div style={{ width:28, height:28, borderRadius:'50%', background:avatarColor(task.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#080b10' }}>{task.username[0].toUpperCase()}</div>
+                  <div style={{ width:28, height:28, borderRadius:'50%', background:avatarColor(task.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff' }}>{task.username[0].toUpperCase()}</div>
+                  <span style={{ fontSize:13, color:'var(--text-primary)', fontWeight:500 }}>@{task.username}</span>
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:5, position:'relative' }}>
                 <div style={sideHead}>Labels</div>
                 <div style={{ display:'flex', alignItems:'center', gap:5, flexWrap:'wrap' }}>
                   {labels.map(l => { const lo=LABEL_OPTIONS.find(x=>x.name===l); return lo?<span key={l} style={{ fontSize:11, fontWeight:700, color:'#fff', padding:'2px 8px', borderRadius:4, background:lo.color }}>{l}</span>:null; })}
-                  <button style={{ width:28, height:28, borderRadius:'50%', background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={() => setShowLabels(p=>!p)}>+</button>
+                  <button style={{ width:28, height:28, borderRadius:'50%', background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:16, cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center' }} onClick={()=>setShowLabels(p=>!p)}>+</button>
                 </div>
                 {showLabels && (
-                  <div style={{ position:'absolute', zIndex:200, top:'100%', left:0, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:12, padding:'12px', minWidth:200, boxShadow:'var(--shadow)' }}>
+                  <div style={{ position:'absolute', zIndex:200, top:'100%', left:0, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:12, padding:'12px', minWidth:210, boxShadow:'var(--shadow)' }}>
                     {LABEL_OPTIONS.map(l => (
                       <div key={l.name} style={{ display:'flex', alignItems:'center', gap:8, padding:'5px 4px', cursor:'pointer', borderRadius:6 }} onClick={() => toggleLabel(l.name)}>
                         <div style={{ width:140, height:26, borderRadius:4, background:l.color, display:'flex', alignItems:'center', justifyContent:'center' }}>
@@ -403,7 +417,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
               {task.due_date && (
                 <div style={{ display:'flex', flexDirection:'column', gap:5 }}>
                   <div style={sideHead}>Due Date</div>
-                  <span style={{ background: new Date(task.due_date)<new Date()?'rgba(248,113,113,0.15)':'rgba(74,222,128,0.15)', border:`1px solid ${new Date(task.due_date)<new Date()?'var(--red)':'var(--green)'}`, color: new Date(task.due_date)<new Date()?'var(--red)':'var(--green)', padding:'3px 10px', borderRadius:6, fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:5 }}>
+                  <span style={{ background: new Date(task.due_date)<new Date()?'rgba(248,113,113,0.15)':'rgba(74,222,128,0.15)', border:`1px solid ${new Date(task.due_date)<new Date()?'var(--red)':'var(--green)'}`, borderRadius:6, padding:'4px 10px', fontSize:12, color:new Date(task.due_date)<new Date()?'var(--red)':'var(--green)', fontWeight:500 }}>
                     {new Date(task.due_date).toLocaleDateString()}
                   </span>
                 </div>
@@ -418,14 +432,14 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
               </div>
               {editDesc && canEdit ? (
                 <div>
-                  <textarea autoFocus rows={4} style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'var(--text-primary)', resize:'vertical', fontFamily:'var(--font-body)', outline:'none', boxSizing:'border-box' }} value={desc} onChange={e=>setDesc(e.target.value)}/>
+                  <textarea autoFocus rows={4} style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:8, padding:'8px 12px', fontSize:13, color:'var(--text-primary)', outline:'none', fontFamily:'inherit' }} value={desc} onChange={e=>setDesc(e.target.value)}/>
                   <div style={{ display:'flex', gap:6, marginTop:6 }}>
-                    <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'6px 16px', fontSize:13, fontWeight:700, cursor:'pointer' }} onClick={saveDesc}>Save</button>
+                    <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'6px 16px', fontSize:13, fontWeight:600, cursor:'pointer' }} onClick={saveDesc}>Save</button>
                     <button style={{ background:'none', border:'none', color:'var(--text-secondary)', fontSize:13, cursor:'pointer' }} onClick={()=>{setEditDesc(false);setDesc(task.description||'');}}>Cancel</button>
                   </div>
                 </div>
               ) : (
-                <div style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--text-primary)', minHeight:52, lineHeight:1.6, cursor:canEdit?'pointer':'default' }} onClick={()=>canEdit&&setEditDesc(true)}>
+                <div style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', borderRadius:8, padding:'10px 14px', fontSize:13, color:'var(--text-primary)', minHeight:52, lineHeight:1.5, cursor:canEdit?'pointer':'default' }} onClick={()=>canEdit&&setEditDesc(true)}>
                   {task.description||<span style={{ color:'var(--text-muted)', fontStyle:'italic' }}>Add a more detailed description…</span>}
                 </div>
               )}
@@ -438,7 +452,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
                   <Ico d="M9 11l3 3L22 4M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" s={15} color="var(--text-secondary)"/>
                   <span style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', fontFamily:'var(--font-display)' }}>Checklist</span>
                   <span style={{ fontSize:11, color:'var(--text-muted)' }}>{checkPct}%</span>
-                  {checklist.length>0 && <button style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer', marginLeft:'auto' }} onClick={()=>onPatch(task.task_id,{checklist:[]})}>Delete</button>}
+                  {checklist.length>0 && <button style={{ background:'none', border:'none', color:'var(--text-muted)', fontSize:12, cursor:'pointer', marginLeft:'auto' }} onClick={()=>onPatch(task.task_id,{checklist:[]})}>Clear</button>}
                 </div>
                 {checklist.length>0 && (
                   <div className="xv-progress-bar-wrap" style={{ marginBottom:10 }}>
@@ -454,14 +468,14 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
                 ))}
                 {addingCheck ? (
                   <div style={{ marginTop:6 }}>
-                    <input autoFocus style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:7, padding:'7px 12px', fontSize:13, color:'var(--text-primary)', fontFamily:'var(--font-body)', outline:'none', boxSizing:'border-box', marginBottom:6 }} placeholder="Add an item…" value={newCheck} onChange={e=>setNewCheck(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCheckItem();if(e.key==='Escape')setAddingCheck(false);}}/>
+                    <input autoFocus style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--accent)', borderRadius:7, padding:'7px 12px', fontSize:13, color:'var(--text-primary)', outline:'none' }} value={newCheck} onChange={e=>setNewCheck(e.target.value)} onKeyDown={e=>{if(e.key==='Enter')addCheckItem(); if(e.key==='Escape')setAddingCheck(false);}}/>
                     <div style={{ display:'flex', gap:6 }}>
-                      <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }} onClick={addCheckItem}>Add</button>
+                      <button style={{ background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'5px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }} onClick={addCheckItem}>Add</button>
                       <button style={{ background:'none', border:'none', color:'var(--text-secondary)', fontSize:12, cursor:'pointer' }} onClick={()=>setAddingCheck(false)}>Cancel</button>
                     </div>
                   </div>
                 ) : (
-                  <button style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer', padding:'5px 12px', borderRadius:7, marginTop:4, fontFamily:'var(--font-body)' }} onClick={()=>setAddingCheck(true)}>Add an item</button>
+                  <button style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', color:'var(--text-secondary)', fontSize:12, cursor:'pointer', padding:'5px 12px', borderRadius:6, marginTop:6, width:'100%' }} onClick={()=>setAddingCheck(true)}>+ Add item</button>
                 )}
               </div>
             )}
@@ -473,15 +487,15 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
                 <span style={{ fontSize:13, fontWeight:700, color:'var(--text-primary)', fontFamily:'var(--font-display)' }}>Activity</span>
               </div>
               <div style={{ display:'flex', gap:10, alignItems:'flex-start', marginBottom:12 }}>
-                <div style={{ width:28, height:28, borderRadius:'50%', background:avatarColor(user.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#080b10', flexShrink:0 }}>{user.username[0].toUpperCase()}</div>
+                <div style={{ width:28, height:28, borderRadius:'50%', background:avatarColor(user.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:11, fontWeight:700, color:'#fff' }}>{user.username[0].toUpperCase()}</div>
                 <div style={{ flex:1 }}>
-                  <textarea style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--border-mid)', borderRadius:9, padding:'8px 12px', fontSize:13, color:'var(--text-primary)', resize:'none', fontFamily:'var(--font-body)', outline:'none', boxSizing:'border-box', transition:'border-color 0.15s' }} placeholder="Write a comment…" value={comment} onChange={e=>setComment(e.target.value)} rows={comment?3:1} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();addComment();}}}/>
-                  {comment && <button style={{ marginTop:6, background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'5px 14px', fontSize:12, fontWeight:700, cursor:'pointer' }} onClick={addComment}>Save</button>}
+                  <textarea style={{ width:'100%', background:'var(--bg-input)', border:'1px solid var(--border-mid)', borderRadius:9, padding:'8px 12px', fontSize:13, color:'var(--text-primary)', outline:'none', fontFamily:'inherit', rows:2 }} placeholder="Add a comment…" value={comment} onChange={e=>setComment(e.target.value)}/>
+                  {comment && <button style={{ marginTop:6, background:'linear-gradient(135deg,var(--accent),var(--purple))', color:'#080b10', border:'none', borderRadius:7, padding:'5px 14px', fontSize:12, fontWeight:600, cursor:'pointer' }} onClick={addComment}>Comment</button>}
                 </div>
               </div>
               <div style={{ display:'flex', flexDirection:'column', gap:10 }}>
                 <div style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-                  <div style={{ width:26, height:26, borderRadius:'50%', background:avatarColor(task.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#080b10', flexShrink:0 }}>{task.username[0].toUpperCase()}</div>
+                  <div style={{ width:26, height:26, borderRadius:'50%', background:avatarColor(task.username), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#fff' }}>{task.username[0].toUpperCase()}</div>
                   <div style={{ fontSize:12, color:'var(--text-secondary)', lineHeight:1.5 }}>
                     <b style={{ color:'var(--text-primary)' }}>@{task.username}</b> added this card to <b>{currentCol?.label}</b>
                     <div style={{ fontSize:10, color:'var(--text-muted)', marginTop:2 }}>{fmtTime(task.created_at)}</div>
@@ -489,7 +503,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
                 </div>
                 {[...comments].reverse().map(c => (
                   <div key={c.id} style={{ display:'flex', gap:10, alignItems:'flex-start' }}>
-                    <div style={{ width:26, height:26, borderRadius:'50%', background:avatarColor(c.user), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#080b10', flexShrink:0 }}>{c.user[0].toUpperCase()}</div>
+                    <div style={{ width:26, height:26, borderRadius:'50%', background:avatarColor(c.user), display:'flex', alignItems:'center', justifyContent:'center', fontSize:10, fontWeight:700, color:'#fff' }}>{c.user[0].toUpperCase()}</div>
                     <div style={{ fontSize:12, color:'var(--text-secondary)' }}>
                       <b style={{ color:'var(--text-primary)' }}>@{c.user}</b>
                       <div style={{ background:'var(--bg-raised)', border:'1px solid var(--border)', borderRadius:7, padding:'7px 10px', fontSize:13, color:'var(--text-primary)', marginTop:4, lineHeight:1.5 }}>{c.text}</div>
@@ -516,9 +530,9 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
               <div style={{ position:'relative' }}>
                 <button style={{ ...mo, width:'100%', marginBottom:4, justifyContent:'flex-start' }} onClick={()=>setShowMove(p=>!p)}><Ico d="M5 12h14M12 5l7 7-7 7" s={13}/>Move</button>
                 {showMove && (
-                  <div style={{ position:'absolute', zIndex:200, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:10, padding:'10px', minWidth:160, boxShadow:'var(--shadow)', top:'100%', right:0 }}>
+                  <div style={{ position:'absolute', zIndex:200, background:'var(--bg-overlay)', border:'1px solid var(--border-mid)', borderRadius:10, padding:'10px', minWidth:160, boxShadow:'var(--shadow)' }}>
                     {columns.filter(c=>c.id!==task.status).map(col => (
-                      <button key={col.id} style={{ display:'block', width:'100%', background:'none', border:'none', color:'var(--text-primary)', fontSize:13, cursor:'pointer', padding:'7px 8px', borderRadius:6, textAlign:'left', fontFamily:'var(--font-body)' }} onClick={()=>{onMove(task.task_id,col.id);setShowMove(false);onClose();}}>{col.label}</button>
+                      <button key={col.id} style={{ display:'block', width:'100%', background:'none', border:'none', color:'var(--text-primary)', fontSize:13, cursor:'pointer', padding:'7px 8px', borderRadius:6, textAlign:'left' }} onClick={()=>{onMove(task.task_id,col.id);setShowMove(false);}}>Move to {col.label}</button>
                     ))}
                   </div>
                 )}
@@ -539,7 +553,7 @@ function CardModal({ task, user, users, columns, onClose, onMove, onDelete, onPa
 /* ── Helpers ── */
 function Ico({ d, s=16, color='currentColor' }) {
   return (
-    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display:'inline-block', verticalAlign:'middle', flexShrink:0 }}>
+    <svg width={s} height={s} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display:'inline-block', verticalAlign:'middle', marginRight:'4px' }}>
       <path d={d}/>
     </svg>
   );
