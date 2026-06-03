@@ -8,7 +8,14 @@ function avatarColor(str) {
 }
 
 export default function Chat({ user }) {
-  const [messages, setMessages] = useState([]);
+  const [messages, setMessages] = useState(() => {
+    try {
+      const cached = localStorage.getItem('xv_messages');
+      return cached ? JSON.parse(cached) : [];
+    } catch {
+      return [];
+    }
+  });
   const [text,     setText]     = useState('');
   const [loading,  setLoading]  = useState(true);
   const bottomRef = useRef();
@@ -24,10 +31,17 @@ export default function Chat({ user }) {
     bottomRef.current?.scrollIntoView({ behavior:'smooth' });
   }, [messages]);
 
+  useEffect(() => {
+    localStorage.setItem('xv_messages', JSON.stringify(messages));
+  }, [messages]);
+
   async function loadMessages() {
     try {
       const r = await api.getMessages();
-      if (r.success) { setMessages(r.messages || []); }
+      if (r.success) { 
+        const newMessages = r.messages || [];
+        setMessages(newMessages);
+      }
     } catch {}
     setLoading(false);
   }
